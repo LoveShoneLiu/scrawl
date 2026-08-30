@@ -209,6 +209,60 @@ enum PondArt {
         }
     }
 
+    static func bobber(color: UIColor) -> UIImage {
+        let size = CGSize(width: 72, height: 100)
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        format.scale = 3
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            let g = ctx.cgContext
+            let center = CGPoint(x: 36, y: 42)
+
+            g.setShadow(offset: CGSize(width: 0, height: 3), blur: 6, color: UIColor(red: 0.05, green: 0.2, blue: 0.22, alpha: 0.35).cgColor)
+            g.setFillColor(UIColor(red: 0.08, green: 0.28, blue: 0.32, alpha: 0.28).cgColor)
+            g.fillEllipse(in: CGRect(x: 14, y: 52, width: 44, height: 16))
+            g.setShadow(offset: .zero, blur: 0, color: nil)
+
+            let body = CGRect(x: 16, y: 16, width: 40, height: 48)
+            g.setFillColor(UIColor.white.cgColor)
+            g.fillEllipse(in: body)
+            g.saveGState()
+            g.addEllipse(in: body)
+            g.clip()
+            g.setFillColor(color.cgColor)
+            g.fill(CGRect(x: 16, y: 40, width: 40, height: 28))
+            g.setFillColor(UIColor.white.withAlphaComponent(0.55).cgColor)
+            g.fillEllipse(in: CGRect(x: 22, y: 20, width: 14, height: 10))
+            g.restoreGState()
+            g.setStrokeColor(color.darker(0.22).cgColor)
+            g.setLineWidth(2.4)
+            g.strokeEllipse(in: body)
+
+            g.setFillColor(UIColor.white.cgColor)
+            g.fillEllipse(in: CGRect(x: 30, y: 10, width: 12, height: 12))
+            g.setStrokeColor(color.darker(0.18).cgColor)
+            g.setLineWidth(2)
+            g.strokeEllipse(in: CGRect(x: 30, y: 10, width: 12, height: 12))
+
+            g.setStrokeColor(UIColor(red: 0.55, green: 0.58, blue: 0.62, alpha: 1).cgColor)
+            g.setLineWidth(2.5)
+            g.setLineCap(.round)
+            let hook = UIBezierPath()
+            hook.move(to: CGPoint(x: 36, y: 62))
+            hook.addLine(to: CGPoint(x: 36, y: 78))
+            hook.addCurve(
+                to: CGPoint(x: 48, y: 86),
+                controlPoint1: CGPoint(x: 36, y: 86),
+                controlPoint2: CGPoint(x: 44, y: 88)
+            )
+            g.addPath(hook.cgPath)
+            g.strokePath()
+            g.setFillColor(UIColor(red: 1, green: 0.86, blue: 0.35, alpha: 1).cgColor)
+            g.fillEllipse(in: CGRect(x: 45, y: 82, width: 8, height: 8))
+        }
+    }
+
     private static func lilyPath(center: CGPoint, radius: CGFloat) -> UIBezierPath {
         let path = UIBezierPath()
         let notch: CGFloat = 0.22

@@ -6,6 +6,19 @@ final class PondFish: SKSpriteNode {
     var cooldown: CGFloat = 0
 }
 
+private final class FishingPlay {
+    let rig: SKNode
+    let bobber: SKSpriteNode
+    var elapsed: CGFloat = 0
+    var caught = false
+    var nibbleWait: CGFloat = 0
+
+    init(rig: SKNode, bobber: SKSpriteNode) {
+        self.rig = rig
+        self.bobber = bobber
+    }
+}
+
 final class PondActor: SKSpriteNode {
     var creatureId = UUID()
     var kind: CreatureKind = .doodle
@@ -39,6 +52,7 @@ final class PondScene: SKScene {
     var onCreatureEaten: ((UUID) -> Void)?
     var onEat: (() -> Void)?
     var onSkill: (() -> Void)?
+    var onCatch: (() -> Void)?
 
     private var actors: [UUID: PondActor] = [:]
     private var leaving = Set<UUID>()
@@ -46,6 +60,7 @@ final class PondScene: SKScene {
     private var lastTime: TimeInterval = 0
     private var bubbleTimer: CGFloat = 0
     private var lastBuiltSize: CGSize = .zero
+    private var fishing: FishingPlay?
 
     func sync(creatures: [Creature], images: [UUID: UIImage]) {
         let ids = Set(creatures.map(\.id))
@@ -108,6 +123,8 @@ final class PondScene: SKScene {
             fish.zRotation = atan2(fish.velocity.dy, fish.velocity.dx)
         }
 
+        steerFishForFishing(dt: dt)
+        tickFishing(dt: dt)
         moveActors(dt: dt)
         tickHabitat(dt: dt)
         resolveFishDoodleBumps()
@@ -119,13 +136,27 @@ final class PondScene: SKScene {
         let hit = nodes(at: location)
             .compactMap { $0 as? PondActor }
             .first { $0.beingEaten == false }
+        if fishing != nil, fishing?.caught == false {
+            if let node = hit {
+                bounce(node)
+                splash(at: node.position, big: false)
+                onTapCreature?()
+            }
+            catchFish()
+            return
+        }
         guard let node = hit else { return }
         bounce(node)
         splash(at: node.position, big: false)
         onTapCreature?()
     }
 
-    func playSkill(_ skill: CreatureSkill) {
+    func playSkill(_ skill: CreatureSkill, color: UIColor = UIColor(red: 0.96, green: 0.42, blue: 0.58, alpha: 1)) {
+        if skill == .fish {
+            startFishing(color: color)
+            onSkill?()
+            return
+        }
         let targets = actors.values.filter { $0.ready && $0.beingEaten == false }
         if targets.isEmpty {
             splash(at: CGPoint(x: size.width * 0.5, y: size.height * 0.5), big: true)
@@ -716,6 +747,187 @@ final class PondScene: SKScene {
         }
     }
 
+    private func startFishing(color: UIColor) {
+        endFishingQuietly()
+        if fishes.isEmpty {
+            spawnDecorFish()
+        }
+        let bait = CGPoint(
+            x: size.width * CGFloat.random(in: 0.28...0.72),
+            y: size.height * CGFloat.random(in: 0.40...0.68)
+        )
+        let rig = SKNode()
+        rig.name = "fishing"
+        rig.position = bait
+        rig.zPosition = 36
+
+        let line = SKShapeNode()
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: max(24, size.height - bait.y - 4)))
+        path.addLine(to: CGPoint(x: 0, y: 22))
+        line.path = path
+        line.strokeColor = SKColor.white.withAlphaComponent(0.5)
+        line.lineWidth = 2.2
+        line.glowWidth = 1
+        line.lineCap = .round
+        rig.addChild(line)
+
+        let bobber = SKSpriteNode(texture: SKTexture(image: PondArt.bobber(color: color)))
+        bobber.name = "bobber"
+        bobber.setScale(0.15)
+        bobber.alpha = 0
+        rig.addChild(bobber)
+        addChild(rig)
+
+        bobber.run(SKAction.group([
+            SKAction.fadeIn(withDuration: 0.16),
+            SKAction.scale(to: 1, duration: 0.22)
+        ]))
+        bobber.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 7, duration: 0.55),
+            SKAction.moveBy(x: 0, y: -7, duration: 0.55)
+        ])), withKey: "bob")
+        rig.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.run { [weak self, weak rig] in
+                guard let self, let rig, self.fishing?.caught == false else { return }
+                self.ripple(at: rig.position)
+            },
+            SKAction.wait(forDuration: 1.05)
+        ])), withKey: "ripples")
+
+        fishing = FishingPlay(rig: rig, bobber: bobber)
+        splash(at: bait, big: false)
+        ripple(at: bait)
+    }
+
+    private func steerFishForFishing(dt: CGFloat) {
+        guard let fishing, fishing.caught == false else { return }
+        let bait = fishing.rig.position
+        for fish in fishes {
+            let dx = bait.x - fish.position.x
+            let dy = bait.y - fish.position.y
+            let dist = hypot(dx, dy)
+            guard dist > 10 else { continue }
+            let pull: CGFloat = dist < 100 ? 96 : 58
+            fish.velocity.dx += (dx / dist) * pull * dt * 2.2
+            fish.velocity.dy += (dy / dist) * pull * dt * 2.2
+            let speed = hypot(fish.velocity.dx, fish.velocity.dy)
+            let cap: CGFloat = 84
+            if speed > cap {
+                fish.velocity.dx = fish.velocity.dx / speed * cap
+                fish.velocity.dy = fish.velocity.dy / speed * cap
+            }
+        }
+    }
+
+    private func tickFishing(dt: CGFloat) {
+        guard let fishing, fishing.caught == false else { return }
+        fishing.elapsed += dt
+        fishing.nibbleWait = max(0, fishing.nibbleWait - dt)
+
+        let bait = fishing.rig.position
+        let nearby = fishes.contains { hypot($0.position.x - bait.x, $0.position.y - bait.y) < 68 }
+        if nearby, fishing.nibbleWait <= 0 {
+            fishing.nibbleWait = 0.42
+            fishing.bobber.removeAction(forKey: "nibble")
+            fishing.bobber.run(SKAction.sequence([
+                SKAction.moveBy(x: 0, y: -10, duration: 0.08),
+                SKAction.moveBy(x: 0, y: 10, duration: 0.12)
+            ]), withKey: "nibble")
+        }
+
+        if fishing.elapsed >= 3.6 {
+            catchFish()
+        }
+    }
+
+    private func catchFish() {
+        guard let fishing, fishing.caught == false else { return }
+        fishing.caught = true
+        let bait = fishing.rig.position
+        let fish = fishes.min {
+            hypot($0.position.x - bait.x, $0.position.y - bait.y)
+                < hypot($1.position.x - bait.x, $1.position.y - bait.y)
+        }
+        fishing.rig.removeAction(forKey: "ripples")
+        fishing.bobber.removeAction(forKey: "bob")
+        let rig = fishing.rig
+        fishing.bobber.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 1.35, duration: 0.16),
+                SKAction.fadeOut(withDuration: 0.28)
+            ]),
+            SKAction.run { [weak self, weak rig] in
+                guard let self, let rig, self.fishing?.rig === rig else { return }
+                self.endFishingQuietly()
+            }
+        ]))
+
+        splash(at: bait, big: true)
+        sparkles(at: bait)
+        hearts(at: bait)
+        hearts(at: CGPoint(x: bait.x + 16, y: bait.y + 8))
+        for actor in actors.values where actor.ready && actor.beingEaten == false && actor.tangled <= 0 {
+            bounce(actor)
+        }
+        if let fish {
+            leapCaught(fish, over: bait)
+        }
+        onCatch?()
+    }
+
+    private func leapCaught(_ fish: PondFish, over bait: CGPoint) {
+        let start = fish.position
+        let peak = CGPoint(
+            x: bait.x,
+            y: min(size.height - 18, max(bait.y, start.y) + 92)
+        )
+        fish.cooldown = 2.2
+        fish.velocity = .zero
+        fish.removeAction(forKey: "caught")
+        let up = SKAction.move(to: peak, duration: 0.28)
+        up.timingMode = .easeOut
+        let down = SKAction.move(to: start, duration: 0.36)
+        down.timingMode = .easeIn
+        fish.run(SKAction.sequence([
+            up,
+            SKAction.run { [weak self] in
+                self?.splash(at: peak, big: true)
+                self?.sparkles(at: peak)
+                self?.hearts(at: peak)
+            },
+            down,
+            SKAction.run { [weak fish] in
+                guard let fish else { return }
+                fish.velocity = CGVector(dx: CGFloat.random(in: -40...40), dy: CGFloat.random(in: -18...18))
+                if abs(fish.velocity.dx) < 16 { fish.velocity.dx = 22 }
+            }
+        ]), withKey: "caught")
+    }
+
+    private func ripple(at point: CGPoint) {
+        let ring = SKShapeNode(circleOfRadius: 8)
+        ring.strokeColor = SKColor.white.withAlphaComponent(0.45)
+        ring.lineWidth = 2
+        ring.fillColor = .clear
+        ring.position = point
+        ring.zPosition = 29
+        addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 5.4, duration: 0.7),
+                SKAction.fadeOut(withDuration: 0.7)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+    }
+
+    private func endFishingQuietly() {
+        fishing?.rig.removeAllActions()
+        fishing?.rig.removeFromParent()
+        fishing = nil
+    }
+
     private func bounce(_ node: SKSpriteNode) {
         node.run(SKAction.sequence([
             SKAction.group([
@@ -865,6 +1077,7 @@ final class PondScene: SKScene {
         let changed = abs(lastBuiltSize.width - size.width) > 2 || abs(lastBuiltSize.height - size.height) > 2
         guard changed else { return }
         lastBuiltSize = size
+        endFishingQuietly()
         rebuildWater()
         rebuildFlora()
         rebuildFish()

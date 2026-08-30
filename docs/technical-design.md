@@ -75,7 +75,7 @@ Each creature is an `SKSpriteNode`. Wander in the pond rect; tap bounce; at 10, 
 | `PlayView` | Only play screen |
 | `DrawingCanvas` | PencilKit bridge; hide picker; lock tool |
 | `DrawingSession` | Current drawing, undo, new paper, export |
-| `PondScene` | Swim, tap, enter/leave, skill toys |
+| `PondScene` | Swim, tap, enter/leave, skill toys, fishing play |
 | `WorldStore` | Creatures, cap, disk, empty, skill pulse |
 | `SoundPlayer` | Short sounds; follows mute |
 | `ParentSettingsView` | Sound, empty pond, save status |
@@ -96,5 +96,6 @@ iPad only (`TARGETED_DEVICE_FAMILY = 2`). UI, PencilKit, and SpriteKit on the ma
 4. Kill and relaunch: pond remains, paper is blank.
 5. 11th put-in: oldest leaves.
 6. Long-press speaker: mute and empty pond.
+7. Fish toy: bobber uses current ink color; tap or wait always succeeds; decorative fish is not removed.
 
 Implementation follows this note. If play changes, update [requirements.md](./requirements.md) too.

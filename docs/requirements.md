@@ -75,6 +75,7 @@ Weather pens, parent voice notes, photo of the pond (gated), optional Pencil.
 - Color, draw, undo, new paper, put in.
 - One paper = one doodle. Looks like the child’s marks, never a stock character.
 - Tap a doodle: bounce + sound. Tap water: nothing bad.
+- Pond toys (dash, jump, glow, bubbles, fish) are momentary play, not loadout. Fishing drops a bobber in the child’s current crayon color; pond fish swim to it; a tap or a short wait always “catches.” The fish leaps, then keeps swimming. No miss, score, or inventory.
 - Parent settings: long-press speaker ~1.2s. Sound toggle; empty pond with confirm.
 - Save failure: silent for the child; visible only in parent settings.
 

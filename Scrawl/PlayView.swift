@@ -269,7 +269,7 @@ struct PlayView: View {
         let on = flashingSkill == skill
         return Button {
             flashingSkill = skill
-            world.playSkill(skill)
+            world.playSkill(skill, color: drawing.inkColor)
             sound.hapticLight()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                 if flashingSkill == skill {
@@ -378,6 +378,7 @@ private extension CreatureSkill {
         case .jump: return Color(red: 0.22, green: 0.62, blue: 0.48)
         case .glow: return Color(red: 0.92, green: 0.72, blue: 0.12)
         case .bubbles: return Color(red: 0.28, green: 0.58, blue: 0.92)
+        case .fish: return Color(red: 0.96, green: 0.42, blue: 0.58)
         case .eat: return Color(red: 0.86, green: 0.28, blue: 0.22)
         case .shield: return Color(red: 0.42, green: 0.52, blue: 0.78)
         case .scare: return Color(red: 0.62, green: 0.38, blue: 0.82)

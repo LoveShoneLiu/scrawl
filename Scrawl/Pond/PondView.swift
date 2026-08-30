@@ -26,6 +26,10 @@ struct PondView: View {
                         sound.play(.splash)
                         sound.hapticLight()
                     }
+                    scene.onCatch = { [sound] in
+                        sound.play(.hooked)
+                        sound.hapticLight()
+                    }
                     scene.onEat = { [sound] in
                         sound.play(.gulp)
                         sound.hapticLight()
@@ -40,7 +44,10 @@ struct PondView: View {
                 }
                 .onChange(of: world.skillPulse) { _, pulse in
                     guard let pulse else { return }
-                    scene.playSkill(pulse.skill)
+                    scene.playSkill(
+                        pulse.skill,
+                        color: UIColor(red: pulse.red, green: pulse.green, blue: pulse.blue, alpha: 1)
+                    )
                 }
                 .onChange(of: world.creatures) { _, creatures in
                     scene.sync(creatures: creatures, images: world.images)

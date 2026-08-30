@@ -17,8 +17,13 @@ final class WorldStore: ObservableObject {
 
     private static let soundKey = "scrawl.soundEnabled"
 
-    func playSkill(_ skill: CreatureSkill) {
-        skillPulse = SkillPulse(skill: skill, token: UUID())
+    func playSkill(_ skill: CreatureSkill, color: UIColor = UIColor(red: 0.96, green: 0.42, blue: 0.58, alpha: 1)) {
+        var red: CGFloat = 0.96
+        var green: CGFloat = 0.42
+        var blue: CGFloat = 0.58
+        var alpha: CGFloat = 1
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        skillPulse = SkillPulse(skill: skill, token: UUID(), red: red, green: green, blue: blue)
     }
 
     init() {
@@ -130,4 +135,7 @@ final class WorldStore: ObservableObject {
 struct SkillPulse: Equatable {
     let skill: CreatureSkill
     let token: UUID
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
 }

@@ -15,6 +15,7 @@ final class SoundPlayer: ObservableObject {
         case splash
         case gulp
         case skill
+        case hooked
     }
 
     init() {
@@ -26,6 +27,7 @@ final class SoundPlayer: ObservableObject {
         players[Cue.splash.rawValue] = Self.makePlayer(frequency: 480, duration: 0.16, sweep: 220)
         players[Cue.gulp.rawValue] = Self.makePlayer(frequency: 160, duration: 0.22, sweep: -90)
         players[Cue.skill.rawValue] = Self.makePlayer(frequency: 1040, duration: 0.16, sweep: 260)
+        players[Cue.hooked.rawValue] = Self.makePlayer(frequency: 720, duration: 0.22, sweep: 420)
     }
 
     func play(_ cue: Cue) {

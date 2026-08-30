@@ -5,6 +5,7 @@ enum CreatureSkill: String, Codable, CaseIterable, Identifiable {
     case jump
     case glow
     case bubbles
+    case fish
     case eat
     case shield
     case scare
@@ -17,6 +18,7 @@ enum CreatureSkill: String, Codable, CaseIterable, Identifiable {
         case .jump: return "arrow.up"
         case .glow: return "sparkles"
         case .bubbles: return "water.waves"
+        case .fish: return "fish.fill"
         case .eat: return "mouth.fill"
         case .shield: return "shield.fill"
         case .scare: return "wind"
@@ -32,7 +34,7 @@ enum CreatureSkill: String, Codable, CaseIterable, Identifiable {
 
     var isKidPlay: Bool {
         switch self {
-        case .dash, .jump, .glow, .bubbles: return true
+        case .dash, .jump, .glow, .bubbles, .fish: return true
         default: return false
         }
     }
