@@ -35,9 +35,9 @@ A cause-and-effect scribble toy. Success is “she drew another one and put it i
 | Role | Need |
 |------|------|
 | Child (~3) | Huge color dots, huge buttons, scribbles celebrated, easy new paper |
-| Parent | Offline, no ads, no outbound links, doodles still there, emptying the pond gated |
+| Parent | Offline, no ads, no outbound links, optional saved ponds, emptying the pond gated |
 
-Typical: sofa play (draw → put in → watch it swim); show a parent; open next day and the pond is still there; waiting rooms with no network.
+Typical: sofa play (draw → put in → watch it swim); show a parent; next launch is a fresh pond unless a parent opens a saved one.
 
 ---
 
@@ -52,7 +52,7 @@ Typical: sofa play (draw → put in → watch it swim); show a parent; open next
 - Any scribble lives; no shape recognition.
 - Empty paper: put-in shakes, no lecture.
 - Paper clears after put-in.
-- Pond persists after kill.
+- Launch starts an empty pond. Parent can save the current pond and open a saved one later.
 - Cap (~10): oldest swims off when full.
 - New paper; sound on/off.
 - Offline; no account, ads, or IAP.
@@ -70,13 +70,14 @@ Weather pens, parent voice notes, photo of the pond (gated), optional Pencil.
 ## 4. Behaviors
 
 - Launch straight into paper + pond. No tutorial, login, or permission sheets.
-- Restore pond creatures; paper starts blank.
+- Launch: empty pond, blank paper. Previous doodles return only if a parent opens a saved pond.
 - Huge hit targets (~120pt). Play loop uses icons, not sentences.
 - Color, draw, undo, new paper, put in.
 - One paper = one doodle. Looks like the child’s marks, never a stock character.
 - Tap a doodle: bounce + sound. Tap water: nothing bad.
-- Pond toys (dash, jump, glow, bubbles, fish) are momentary play, not loadout. Fishing drops a bobber in the child’s current crayon color; pond fish swim to it; a tap or a short wait always “catches.” The fish leaps, then keeps swimming. No miss, score, or inventory.
-- Parent settings: long-press speaker ~1.2s. Sound toggle; empty pond with confirm.
+- Pond toys (dash, jump, glow, bubbles, fish) are momentary play, not loadout. Tap the fish button to drop a hook; tap it again to cancel. Pond fish **and the child’s own swimming doodles** swim to the hook; a nibble or a tap always catches. Caught things go into the net and still look like her drawing. No miss or score.
+- Save sits next to undo. The stacked-squares button opens saved ponds; each card has a trash button to delete after confirm. Parent settings still has the same list, plus sound and empty pond.
+- Parent settings: long-press speaker ~1.2s. Sound toggle; save this pond; open or delete saved ponds; empty pond with confirm.
 - Save failure: silent for the child; visible only in parent settings.
 
 ---
@@ -86,7 +87,7 @@ Weather pens, parent voice notes, photo of the pond (gated), optional Pencil.
 1. Child can draw and put in with almost no spoken steps.
 2. She can tell it is **her** drawing, and taps it or draws another.
 3. Parent never feels a “you did it wrong” moment.
-4. Pond still has doodles after relaunch.
+4. Relaunch is a fresh pond; a parent can open a saved pond from settings.
 
 ---
 

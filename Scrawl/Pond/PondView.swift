@@ -30,6 +30,15 @@ struct PondView: View {
                         sound.play(.hooked)
                         sound.hapticLight()
                     }
+                    scene.onNetted = { [world] fish in
+                        world.addNetted(fish)
+                    }
+                    scene.onNettedDoodle = { [world] id in
+                        world.addNettedCreature(id: id)
+                    }
+                    scene.onFishingChanged = { [world] active in
+                        world.isFishing = active
+                    }
                     scene.onEat = { [sound] in
                         sound.play(.gulp)
                         sound.hapticLight()
@@ -37,7 +46,17 @@ struct PondView: View {
                     scene.onCreatureEaten = { [world] id in
                         world.remove(id: id)
                     }
-                    scene.sync(creatures: world.creatures, images: world.images)
+                    scene.sync(
+                        creatures: world.creatures,
+                        images: world.images,
+                        nettedIds: Set(world.nettedCreatureIds)
+                    )
+                    scene.syncNetted(world.nettedFish)
+                    scene.syncNettedDoodles(
+                        ids: world.nettedCreatureIds,
+                        creatures: world.creatures,
+                        images: world.images
+                    )
                 }
                 .onChange(of: geo.size) { _, size in
                     scene.size = size
@@ -50,7 +69,31 @@ struct PondView: View {
                     )
                 }
                 .onChange(of: world.creatures) { _, creatures in
-                    scene.sync(creatures: creatures, images: world.images)
+                    scene.sync(
+                        creatures: creatures,
+                        images: world.images,
+                        nettedIds: Set(world.nettedCreatureIds)
+                    )
+                    scene.syncNettedDoodles(
+                        ids: world.nettedCreatureIds,
+                        creatures: creatures,
+                        images: world.images
+                    )
+                }
+                .onChange(of: world.nettedFish) { _, netted in
+                    scene.syncNetted(netted)
+                }
+                .onChange(of: world.nettedCreatureIds) { _, ids in
+                    scene.sync(
+                        creatures: world.creatures,
+                        images: world.images,
+                        nettedIds: Set(ids)
+                    )
+                    scene.syncNettedDoodles(
+                        ids: ids,
+                        creatures: world.creatures,
+                        images: world.images
+                    )
                 }
         }
         .ignoresSafeArea(edges: .bottom)

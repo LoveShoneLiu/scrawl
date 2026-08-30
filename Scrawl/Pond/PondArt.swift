@@ -263,6 +263,69 @@ enum PondArt {
         }
     }
 
+    static func net() -> UIImage {
+        let size = CGSize(width: 150, height: 176)
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        format.scale = 3
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            let g = ctx.cgContext
+
+            g.setShadow(offset: CGSize(width: 0, height: 4), blur: 8, color: UIColor(red: 0.05, green: 0.18, blue: 0.2, alpha: 0.35).cgColor)
+            g.setFillColor(UIColor(red: 0.10, green: 0.32, blue: 0.34, alpha: 0.28).cgColor)
+            g.fillEllipse(in: CGRect(x: 18, y: 148, width: 114, height: 20))
+            g.setShadow(offset: .zero, blur: 0, color: nil)
+
+            let bag = UIBezierPath()
+            bag.move(to: CGPoint(x: 28, y: 58))
+            bag.addQuadCurve(to: CGPoint(x: 122, y: 58), controlPoint: CGPoint(x: 75, y: 52))
+            bag.addQuadCurve(to: CGPoint(x: 112, y: 150), controlPoint: CGPoint(x: 128, y: 108))
+            bag.addQuadCurve(to: CGPoint(x: 38, y: 150), controlPoint: CGPoint(x: 75, y: 168))
+            bag.addQuadCurve(to: CGPoint(x: 28, y: 58), controlPoint: CGPoint(x: 20, y: 108))
+            g.setFillColor(UIColor(red: 0.72, green: 0.86, blue: 0.78, alpha: 0.55).cgColor)
+            g.addPath(bag.cgPath)
+            g.fillPath()
+
+            g.setStrokeColor(UIColor(red: 0.55, green: 0.72, blue: 0.62, alpha: 0.85).cgColor)
+            g.setLineWidth(1.6)
+            for i in 0..<6 {
+                let x = 36 + CGFloat(i) * 14
+                let line = UIBezierPath()
+                line.move(to: CGPoint(x: x, y: 62))
+                line.addQuadCurve(to: CGPoint(x: x + 4, y: 146), controlPoint: CGPoint(x: x - 8, y: 104))
+                g.addPath(line.cgPath)
+            }
+            for i in 0..<5 {
+                let y = 74 + CGFloat(i) * 16
+                let line = UIBezierPath()
+                line.move(to: CGPoint(x: 34, y: y))
+                line.addQuadCurve(to: CGPoint(x: 116, y: y + 4), controlPoint: CGPoint(x: 75, y: y - 6))
+                g.addPath(line.cgPath)
+            }
+            g.strokePath()
+
+            g.setStrokeColor(UIColor(red: 0.72, green: 0.48, blue: 0.28, alpha: 1).cgColor)
+            g.setLineWidth(9)
+            g.strokeEllipse(in: CGRect(x: 22, y: 36, width: 106, height: 40))
+            g.setStrokeColor(UIColor(red: 0.90, green: 0.70, blue: 0.42, alpha: 1).cgColor)
+            g.setLineWidth(4)
+            g.strokeEllipse(in: CGRect(x: 26, y: 40, width: 98, height: 32))
+
+            g.setStrokeColor(UIColor(red: 0.62, green: 0.42, blue: 0.24, alpha: 1).cgColor)
+            g.setLineWidth(5)
+            g.setLineCap(.round)
+            let handle = UIBezierPath()
+            handle.move(to: CGPoint(x: 46, y: 42))
+            handle.addQuadCurve(to: CGPoint(x: 104, y: 42), controlPoint: CGPoint(x: 75, y: 8))
+            g.addPath(handle.cgPath)
+            g.strokePath()
+
+            g.setFillColor(UIColor(red: 0.95, green: 0.55, blue: 0.62, alpha: 1).cgColor)
+            g.fillEllipse(in: CGRect(x: 70, y: 4, width: 12, height: 12))
+        }
+    }
+
     private static func lilyPath(center: CGPoint, radius: CGFloat) -> UIBezierPath {
         let path = UIBezierPath()
         let notch: CGFloat = 0.22

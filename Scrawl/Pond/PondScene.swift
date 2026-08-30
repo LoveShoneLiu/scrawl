@@ -4,6 +4,12 @@ import UIKit
 final class PondFish: SKSpriteNode {
     var velocity = CGVector.zero
     var cooldown: CGFloat = 0
+    var record = NettedFish(
+        length: 58,
+        body: UIColor(red: 0.92, green: 0.42, blue: 0.14, alpha: 1),
+        belly: UIColor(red: 1, green: 0.72, blue: 0.32, alpha: 1),
+        spots: true
+    )
 }
 
 private final class FishingPlay {
@@ -12,6 +18,7 @@ private final class FishingPlay {
     var elapsed: CGFloat = 0
     var caught = false
     var nibbleWait: CGFloat = 0
+    var bite: CGFloat = 0
 
     init(rig: SKNode, bobber: SKSpriteNode) {
         self.rig = rig
@@ -53,21 +60,33 @@ final class PondScene: SKScene {
     var onEat: (() -> Void)?
     var onSkill: (() -> Void)?
     var onCatch: (() -> Void)?
+    var onNetted: ((NettedFish) -> Void)?
+    var onNettedDoodle: ((UUID) -> Void)?
+    var onFishingChanged: ((Bool) -> Void)?
 
     private var actors: [UUID: PondActor] = [:]
     private var leaving = Set<UUID>()
     private var fishes: [PondFish] = []
+    private var nettedNodes: [PondFish] = []
+    private var nettedDoodles: [PondActor] = []
+    private var net: SKSpriteNode?
+    private var nettedCreatureIds = Set<UUID>()
     private var lastTime: TimeInterval = 0
     private var bubbleTimer: CGFloat = 0
     private var lastBuiltSize: CGSize = .zero
     private var fishing: FishingPlay?
 
-    func sync(creatures: [Creature], images: [UUID: UIImage]) {
-        let ids = Set(creatures.map(\.id))
-        for (id, node) in actors where !ids.contains(id) && leaving.contains(id) == false {
-            leave(id: id, node: node)
+    func sync(creatures: [Creature], images: [UUID: UIImage], nettedIds: Set<UUID> = []) {
+        nettedCreatureIds = nettedIds
+        let swimming = Set(creatures.map(\.id)).subtracting(nettedIds)
+        for (id, node) in actors where swimming.contains(id) == false && leaving.contains(id) == false {
+            if nettedIds.contains(id) {
+                actors[id] = nil
+            } else {
+                leave(id: id, node: node)
+            }
         }
-        for creature in creatures {
+        for creature in creatures where swimming.contains(creature.id) {
             guard actors[creature.id] == nil, leaving.contains(creature.id) == false else { continue }
             guard let image = images[creature.id] else { continue }
             enter(creature: creature, image: image)
@@ -136,13 +155,32 @@ final class PondScene: SKScene {
         let hit = nodes(at: location)
             .compactMap { $0 as? PondActor }
             .first { $0.beingEaten == false }
-        if fishing != nil, fishing?.caught == false {
+        if let fishing, fishing.caught == false {
+            if let node = hit, node.swims {
+                catchHooked(doodle: node, fish: nil)
+                return
+            }
             if let node = hit {
                 bounce(node)
                 splash(at: node.position, big: false)
                 onTapCreature?()
+                return
             }
-            catchFish()
+            let bait = fishing.rig.position
+            let tappedFish = nodes(at: location)
+                .compactMap { $0 as? PondFish }
+                .first { fish in fishes.contains(where: { $0 === fish }) }
+            let nearHook = hypot(location.x - bait.x, location.y - bait.y) < 84
+            if let tappedFish {
+                catchHooked(fish: tappedFish)
+            } else if nearHook {
+                catchHooked()
+            }
+            return
+        }
+        if let net, net.contains(location) || net.frame.insetBy(dx: -16, dy: -16).contains(location) {
+            bounce(net)
+            splash(at: net.position, big: false)
             return
         }
         guard let node = hit else { return }
@@ -153,7 +191,13 @@ final class PondScene: SKScene {
 
     func playSkill(_ skill: CreatureSkill, color: UIColor = UIColor(red: 0.96, green: 0.42, blue: 0.58, alpha: 1)) {
         if skill == .fish {
-            startFishing(color: color)
+            if fishing != nil, fishing?.caught == false {
+                cancelFishing()
+                onFishingChanged?(false)
+            } else {
+                startFishing(color: color)
+                onFishingChanged?(true)
+            }
             onSkill?()
             return
         }
@@ -753,7 +797,7 @@ final class PondScene: SKScene {
             spawnDecorFish()
         }
         let bait = CGPoint(
-            x: size.width * CGFloat.random(in: 0.28...0.72),
+            x: size.width * CGFloat.random(in: 0.22...0.64),
             y: size.height * CGFloat.random(in: 0.40...0.68)
         )
         let rig = SKNode()
@@ -800,23 +844,64 @@ final class PondScene: SKScene {
         ripple(at: bait)
     }
 
+    private func cancelFishing() {
+        guard let fishing else {
+            endFishingQuietly()
+            return
+        }
+        fishing.caught = true
+        fishing.rig.removeAction(forKey: "ripples")
+        fishing.bobber.removeAllActions()
+        let rig = fishing.rig
+        fishing.bobber.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.moveBy(x: 0, y: 36, duration: 0.22),
+                SKAction.fadeOut(withDuration: 0.22),
+                SKAction.scale(to: 0.2, duration: 0.22)
+            ]),
+            SKAction.run { [weak self, weak rig] in
+                guard let self, let rig, self.fishing?.rig === rig else { return }
+                self.endFishingQuietly()
+            }
+        ]))
+        splash(at: fishing.rig.position, big: false)
+    }
+
+    private func catchableDoodles() -> [PondActor] {
+        actors.values.filter { $0.ready && $0.beingEaten == false && $0.swims && $0.tangled <= 0 }
+    }
+
+    private func nearestCatchableDoodle(to point: CGPoint) -> PondActor? {
+        catchableDoodles().min {
+            hypot($0.position.x - point.x, $0.position.y - point.y)
+                < hypot($1.position.x - point.x, $1.position.y - point.y)
+        }
+    }
+
+    private func pullTowardBait(velocity: inout CGVector, from position: CGPoint, bait: CGPoint, dt: CGFloat) {
+        let dx = bait.x - position.x
+        let dy = bait.y - position.y
+        let dist = hypot(dx, dy)
+        guard dist > 10 else { return }
+        let pull: CGFloat = dist < 100 ? 96 : 58
+        velocity.dx += (dx / dist) * pull * dt * 2.2
+        velocity.dy += (dy / dist) * pull * dt * 2.2
+        let speed = hypot(velocity.dx, velocity.dy)
+        let cap: CGFloat = 84
+        if speed > cap {
+            velocity.dx = velocity.dx / speed * cap
+            velocity.dy = velocity.dy / speed * cap
+        }
+    }
+
     private func steerFishForFishing(dt: CGFloat) {
         guard let fishing, fishing.caught == false else { return }
         let bait = fishing.rig.position
         for fish in fishes {
-            let dx = bait.x - fish.position.x
-            let dy = bait.y - fish.position.y
-            let dist = hypot(dx, dy)
-            guard dist > 10 else { continue }
-            let pull: CGFloat = dist < 100 ? 96 : 58
-            fish.velocity.dx += (dx / dist) * pull * dt * 2.2
-            fish.velocity.dy += (dy / dist) * pull * dt * 2.2
-            let speed = hypot(fish.velocity.dx, fish.velocity.dy)
-            let cap: CGFloat = 84
-            if speed > cap {
-                fish.velocity.dx = fish.velocity.dx / speed * cap
-                fish.velocity.dy = fish.velocity.dy / speed * cap
-            }
+            pullTowardBait(velocity: &fish.velocity, from: fish.position, bait: bait, dt: dt)
+        }
+        for doodle in catchableDoodles() {
+            pullTowardBait(velocity: &doodle.velocity, from: doodle.position, bait: bait, dt: dt)
         }
     }
 
@@ -826,29 +911,63 @@ final class PondScene: SKScene {
         fishing.nibbleWait = max(0, fishing.nibbleWait - dt)
 
         let bait = fishing.rig.position
-        let nearby = fishes.contains { hypot($0.position.x - bait.x, $0.position.y - bait.y) < 68 }
-        if nearby, fishing.nibbleWait <= 0 {
-            fishing.nibbleWait = 0.42
-            fishing.bobber.removeAction(forKey: "nibble")
-            fishing.bobber.run(SKAction.sequence([
-                SKAction.moveBy(x: 0, y: -10, duration: 0.08),
-                SKAction.moveBy(x: 0, y: 10, duration: 0.12)
-            ]), withKey: "nibble")
+        let nearbyFish = fishes.contains { hypot($0.position.x - bait.x, $0.position.y - bait.y) < 68 }
+        let nearbyDoodle = catchableDoodles().contains { hypot($0.position.x - bait.x, $0.position.y - bait.y) < 72 }
+        let nearby = nearbyFish || nearbyDoodle
+        if nearby {
+            fishing.bite += dt
+            if fishing.nibbleWait <= 0 {
+                fishing.nibbleWait = 0.42
+                fishing.bobber.removeAction(forKey: "nibble")
+                fishing.bobber.run(SKAction.sequence([
+                    SKAction.moveBy(x: 0, y: -10, duration: 0.08),
+                    SKAction.moveBy(x: 0, y: 10, duration: 0.12)
+                ]), withKey: "nibble")
+            }
+        } else {
+            fishing.bite = max(0, fishing.bite - dt)
         }
 
-        if fishing.elapsed >= 3.6 {
-            catchFish()
+        if fishing.bite >= 0.85 {
+            catchHooked()
         }
     }
 
-    private func catchFish() {
+    private func catchHooked(doodle: PondActor? = nil, fish: PondFish? = nil) {
         guard let fishing, fishing.caught == false else { return }
-        fishing.caught = true
         let bait = fishing.rig.position
-        let fish = fishes.min {
-            hypot($0.position.x - bait.x, $0.position.y - bait.y)
-                < hypot($1.position.x - bait.x, $1.position.y - bait.y)
+        let takeDoodle: PondActor?
+        let takeFish: PondFish?
+        if let doodle, fish == nil {
+            takeDoodle = doodle
+            takeFish = nil
+        } else if let fish, doodle == nil {
+            takeDoodle = nil
+            takeFish = fish
+        } else {
+            let nearestDoodle = doodle ?? nearestCatchableDoodle(to: bait)
+            let nearestFish = fish ?? fishes.min {
+                hypot($0.position.x - bait.x, $0.position.y - bait.y)
+                    < hypot($1.position.x - bait.x, $1.position.y - bait.y)
+            }
+            if let nearestDoodle, let nearestFish {
+                let doodleDist = hypot(nearestDoodle.position.x - bait.x, nearestDoodle.position.y - bait.y)
+                let fishDist = hypot(nearestFish.position.x - bait.x, nearestFish.position.y - bait.y)
+                if doodleDist <= fishDist {
+                    takeDoodle = nearestDoodle
+                    takeFish = nil
+                } else {
+                    takeDoodle = nil
+                    takeFish = nearestFish
+                }
+            } else {
+                takeDoodle = nearestDoodle
+                takeFish = nearestFish
+            }
         }
+        guard takeDoodle != nil || takeFish != nil else { return }
+
+        fishing.caught = true
         fishing.rig.removeAction(forKey: "ripples")
         fishing.bobber.removeAction(forKey: "bob")
         let rig = fishing.rig
@@ -867,42 +986,112 @@ final class PondScene: SKScene {
         sparkles(at: bait)
         hearts(at: bait)
         hearts(at: CGPoint(x: bait.x + 16, y: bait.y + 8))
-        for actor in actors.values where actor.ready && actor.beingEaten == false && actor.tangled <= 0 {
+        for actor in actors.values where actor.ready && actor.beingEaten == false && actor.tangled <= 0 && actor !== takeDoodle {
             bounce(actor)
         }
-        if let fish {
-            leapCaught(fish, over: bait)
+        if let takeDoodle {
+            actors[takeDoodle.creatureId] = nil
+            takeDoodle.ready = false
+            takeDoodle.casting = true
+            takeDoodle.velocity = .zero
+            nettedDoodles.append(takeDoodle)
+            nettedCreatureIds.insert(takeDoodle.creatureId)
+            onNettedDoodle?(takeDoodle.creatureId)
+            leapIntoNet(takeDoodle, over: bait, scaleTo: 0.5)
+        } else if let takeFish {
+            fishes.removeAll { $0 === takeFish }
+            nettedNodes.append(takeFish)
+            onNetted?(takeFish.record)
+            leapIntoNet(takeFish, over: bait, scaleTo: 0.42)
         }
         onCatch?()
+        onFishingChanged?(false)
     }
 
-    private func leapCaught(_ fish: PondFish, over bait: CGPoint) {
-        let start = fish.position
+    private func leapIntoNet(_ node: SKSpriteNode, over bait: CGPoint, scaleTo: CGFloat) {
         let peak = CGPoint(
             x: bait.x,
-            y: min(size.height - 18, max(bait.y, start.y) + 92)
+            y: min(size.height - 18, max(bait.y, node.position.y) + 78)
         )
-        fish.cooldown = 2.2
-        fish.velocity = .zero
-        fish.removeAction(forKey: "caught")
-        let up = SKAction.move(to: peak, duration: 0.28)
+        let dest = net?.convert(netSlot(max(0, nettedCount - 1)), to: self) ?? netAnchor
+        if let fish = node as? PondFish {
+            fish.cooldown = 8
+            fish.velocity = .zero
+        }
+        node.removeAllActions()
+        let up = SKAction.move(to: peak, duration: 0.26)
         up.timingMode = .easeOut
-        let down = SKAction.move(to: start, duration: 0.36)
-        down.timingMode = .easeIn
-        fish.run(SKAction.sequence([
+        let intoNet = SKAction.move(to: dest, duration: 0.38)
+        intoNet.timingMode = .easeIn
+        node.run(SKAction.sequence([
             up,
             SKAction.run { [weak self] in
                 self?.splash(at: peak, big: true)
                 self?.sparkles(at: peak)
                 self?.hearts(at: peak)
             },
-            down,
-            SKAction.run { [weak fish] in
-                guard let fish else { return }
-                fish.velocity = CGVector(dx: CGFloat.random(in: -40...40), dy: CGFloat.random(in: -18...18))
-                if abs(fish.velocity.dx) < 16 { fish.velocity.dx = 22 }
+            SKAction.group([
+                intoNet,
+                SKAction.scale(to: scaleTo, duration: 0.38)
+            ]),
+            SKAction.run { [weak self, weak node] in
+                guard let self, let node else { return }
+                self.seatInNet(node)
             }
         ]), withKey: "caught")
+    }
+
+    func syncNettedDoodles(ids: [UUID], creatures: [Creature], images: [UUID: UIImage]) {
+        if nettedDoodles.map(\.creatureId) == ids { return }
+        if net == nil {
+            rebuildNet()
+        }
+        for node in nettedDoodles {
+            node.removeFromParent()
+        }
+        nettedDoodles.removeAll()
+        guard let net else { return }
+        for id in ids {
+            guard let creature = creatures.first(where: { $0.id == id }),
+                  let image = images[id] else { continue }
+            let node = PondActor(texture: SKTexture(image: image))
+            node.creatureId = id
+            node.kind = creature.kind
+            node.ready = false
+            node.size = Self.displaySize(for: image.size, kind: creature.kind)
+            node.setScale(0.5)
+            node.zPosition = 1
+            node.zRotation = CGFloat.random(in: -0.35...0.35)
+            node.position = netSlot(nettedCount)
+            net.addChild(node)
+            nettedDoodles.append(node)
+            wiggleInNet(node)
+        }
+        restackNet()
+    }
+
+    func syncNetted(_ records: [NettedFish]) {
+        if nettedNodes.map(\.record.id) == records.map(\.id) { return }
+        if net == nil {
+            rebuildNet()
+        }
+        for fish in nettedNodes {
+            fish.removeFromParent()
+        }
+        nettedNodes.removeAll()
+        guard let net else { return }
+        for (index, record) in records.enumerated() {
+            let fish = makePondFish(record: record)
+            fish.setScale(0.42)
+            fish.position = netSlot(index)
+            fish.zPosition = 1
+            fish.zRotation = CGFloat.random(in: -0.35...0.35)
+            fish.velocity = .zero
+            net.addChild(fish)
+            nettedNodes.append(fish)
+            wiggleInNet(fish)
+        }
+        restackNet()
     }
 
     private func ripple(at point: CGPoint) {
@@ -926,6 +1115,104 @@ final class PondScene: SKScene {
         fishing?.rig.removeAllActions()
         fishing?.rig.removeFromParent()
         fishing = nil
+    }
+
+    private var netAnchor: CGPoint {
+        CGPoint(x: size.width * 0.86, y: size.height * 0.40)
+    }
+
+    private var nettedCount: Int { nettedNodes.count + nettedDoodles.count }
+
+    private func netSlot(_ index: Int) -> CGPoint {
+        let col = index % 2
+        let row = index / 2
+        return CGPoint(x: CGFloat(col) * 22 - 11, y: 8 - CGFloat(row) * 17)
+    }
+
+    private func restackNet() {
+        let all: [SKSpriteNode] = nettedNodes + nettedDoodles
+        for (index, node) in all.enumerated() {
+            node.position = netSlot(index)
+        }
+    }
+
+    private func seatInNet(_ node: SKSpriteNode) {
+        guard let net else { return }
+        if let fish = node as? PondFish {
+            fish.velocity = .zero
+        }
+        node.removeFromParent()
+        node.zRotation = CGFloat.random(in: -0.4...0.4)
+        node.setScale(node is PondActor ? 0.5 : 0.42)
+        node.zPosition = 1
+        net.addChild(node)
+        restackNet()
+        wiggleInNet(node)
+        bounce(net)
+        splash(at: net.position, big: false)
+        if fishes.count < 4 {
+            spawnDecorFish()
+        }
+    }
+
+    private func wiggleInNet(_ node: SKSpriteNode) {
+        node.removeAction(forKey: "wander")
+        node.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.rotate(byAngle: 0.22, duration: 0.35),
+            SKAction.rotate(byAngle: -0.22, duration: 0.35)
+        ])), withKey: "netWiggle")
+    }
+
+    private func rebuildNet() {
+        let keptFish = nettedNodes
+        let keptDoodles = nettedDoodles
+        net?.removeFromParent()
+        let hoop = SKSpriteNode(texture: SKTexture(image: PondArt.net()))
+        hoop.name = "net"
+        hoop.position = netAnchor
+        hoop.zPosition = 22
+        addChild(hoop)
+        net = hoop
+        nettedNodes = []
+        nettedDoodles = []
+        for fish in keptFish {
+            fish.removeFromParent()
+            fish.removeAllActions()
+            fish.velocity = .zero
+            fish.setScale(0.42)
+            fish.zPosition = 1
+            hoop.addChild(fish)
+            nettedNodes.append(fish)
+            wiggleInNet(fish)
+        }
+        for doodle in keptDoodles {
+            doodle.removeFromParent()
+            doodle.removeAllActions()
+            doodle.velocity = .zero
+            doodle.setScale(0.5)
+            doodle.zPosition = 1
+            hoop.addChild(doodle)
+            nettedDoodles.append(doodle)
+            wiggleInNet(doodle)
+        }
+        restackNet()
+    }
+
+    private func makePondFish(record: NettedFish) -> PondFish {
+        let fish = PondFish(texture: SKTexture(image: PondArt.fish(
+            length: record.length,
+            body: record.bodyColor,
+            belly: record.bellyColor,
+            spots: record.spots
+        )))
+        fish.record = record
+        fish.name = "fish"
+        fish.zPosition = 8
+        return fish
+    }
+
+    private func makePondFish(length: CGFloat, body: UIColor, belly: UIColor, spots: Bool) -> PondFish {
+        makePondFish(record: NettedFish(length: length, body: body, belly: belly, spots: spots))
     }
 
     private func bounce(_ node: SKSpriteNode) {
@@ -1081,6 +1368,7 @@ final class PondScene: SKScene {
         rebuildWater()
         rebuildFlora()
         rebuildFish()
+        rebuildNet()
     }
 
     private func rebuildWater() {
@@ -1166,13 +1454,11 @@ final class PondScene: SKScene {
             (52, UIColor(red: 0.18, green: 0.48, blue: 0.72, alpha: 1), UIColor(red: 0.45, green: 0.75, blue: 0.9, alpha: 1), false)
         ]
         for (length, body, belly, spots) in kinds {
-            let fish = PondFish(texture: SKTexture(image: PondArt.fish(length: length, body: body, belly: belly, spots: spots)))
-            fish.name = "fish"
+            let fish = makePondFish(length: length, body: body, belly: belly, spots: spots)
             fish.position = CGPoint(
                 x: CGFloat.random(in: 60...(size.width - 60)),
                 y: CGFloat.random(in: 50...(size.height - 50))
             )
-            fish.zPosition = 8
             fish.velocity = CGVector(
                 dx: CGFloat.random(in: -50...50),
                 dy: CGFloat.random(in: -28...28)
@@ -1191,10 +1477,8 @@ final class PondScene: SKScene {
             (52, UIColor(red: 0.18, green: 0.48, blue: 0.72, alpha: 1), UIColor(red: 0.45, green: 0.75, blue: 0.9, alpha: 1), false)
         ]
         let pick = kinds.randomElement() ?? kinds[0]
-        let fish = PondFish(texture: SKTexture(image: PondArt.fish(length: pick.0, body: pick.1, belly: pick.2, spots: pick.3)))
-        fish.name = "fish"
+        let fish = makePondFish(length: pick.0, body: pick.1, belly: pick.2, spots: pick.3)
         fish.position = CGPoint(x: -40, y: CGFloat.random(in: 50...max(60, size.height - 50)))
-        fish.zPosition = 8
         fish.velocity = CGVector(dx: 36, dy: CGFloat.random(in: -16...16))
         fish.alpha = 0
         addChild(fish)

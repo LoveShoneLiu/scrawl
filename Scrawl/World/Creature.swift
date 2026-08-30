@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum CreatureSkill: String, Codable, CaseIterable, Identifiable {
     case dash
@@ -72,6 +73,57 @@ struct Creature: Identifiable, Codable, Equatable {
     }
 }
 
+struct NettedFish: Codable, Equatable, Identifiable {
+    let id: UUID
+    let length: CGFloat
+    let bodyR: CGFloat
+    let bodyG: CGFloat
+    let bodyB: CGFloat
+    let bellyR: CGFloat
+    let bellyG: CGFloat
+    let bellyB: CGFloat
+    let spots: Bool
+
+    var bodyColor: UIColor {
+        UIColor(red: bodyR, green: bodyG, blue: bodyB, alpha: 1)
+    }
+
+    var bellyColor: UIColor {
+        UIColor(red: bellyR, green: bellyG, blue: bellyB, alpha: 1)
+    }
+
+    init(id: UUID = UUID(), length: CGFloat, body: UIColor, belly: UIColor, spots: Bool) {
+        self.id = id
+        self.length = length
+        var bodyR: CGFloat = 1, bodyG: CGFloat = 1, bodyB: CGFloat = 1, bodyA: CGFloat = 1
+        var bellyR: CGFloat = 1, bellyG: CGFloat = 1, bellyB: CGFloat = 1, bellyA: CGFloat = 1
+        body.getRed(&bodyR, green: &bodyG, blue: &bodyB, alpha: &bodyA)
+        belly.getRed(&bellyR, green: &bellyG, blue: &bellyB, alpha: &bellyA)
+        self.bodyR = bodyR
+        self.bodyG = bodyG
+        self.bodyB = bodyB
+        self.bellyR = bellyR
+        self.bellyG = bellyG
+        self.bellyB = bellyB
+        self.spots = spots
+    }
+}
+
 struct WorldFile: Codable {
     var creatures: [Creature]
+    var netted: [NettedFish]
+    var nettedCreatureIds: [UUID]
+
+    init(creatures: [Creature], netted: [NettedFish] = [], nettedCreatureIds: [UUID] = []) {
+        self.creatures = creatures
+        self.netted = netted
+        self.nettedCreatureIds = nettedCreatureIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        creatures = try container.decodeIfPresent([Creature].self, forKey: .creatures) ?? []
+        netted = try container.decodeIfPresent([NettedFish].self, forKey: .netted) ?? []
+        nettedCreatureIds = try container.decodeIfPresent([UUID].self, forKey: .nettedCreatureIds) ?? []
+    }
 }

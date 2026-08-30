@@ -9,6 +9,9 @@ struct PlayView: View {
     @State private var showSettings = false
     @State private var ignoreNextSoundTap = false
     @State private var flashingSkill: CreatureSkill?
+    @State private var saveFlash = false
+    @State private var saveShake: CGFloat = 0
+    @State private var showLibrary = false
 
     private let accent = Color(red: 0.18, green: 0.55, blue: 0.62)
     private let ink = Color(red: 0.28, green: 0.32, blue: 0.36)
@@ -36,6 +39,9 @@ struct PlayView: View {
         .ignoresSafeArea()
         .sheet(isPresented: $showSettings) {
             ParentSettingsView()
+        }
+        .sheet(isPresented: $showLibrary) {
+            PondLibraryView()
         }
     }
 
@@ -106,6 +112,10 @@ struct PlayView: View {
                 roundTool(systemName: "doc", size: tool) {
                     drawing.clearPaper()
                 }
+            }
+            HStack(spacing: 10) {
+                saveButton(size: tool)
+                libraryButton(size: tool)
             }
         }
     }
@@ -265,17 +275,67 @@ struct PlayView: View {
         .buttonStyle(.plain)
     }
 
-    private func skillButton(_ skill: CreatureSkill, size: CGFloat) -> some View {
-        let on = flashingSkill == skill
-        return Button {
-            flashingSkill = skill
-            world.playSkill(skill, color: drawing.inkColor)
+    private func saveButton(size: CGFloat) -> some View {
+        Button(action: savePond) {
+            Image(systemName: saveFlash ? "checkmark" : "square.and.arrow.down")
+                .font(.system(size: size * 0.4, weight: .bold))
+                .foregroundStyle(saveFlash ? Color.white : ink)
+                .frame(width: size, height: size)
+                .background(Circle().fill(saveFlash ? accent : Color.white))
+                .overlay(Circle().stroke(saveFlash ? Color.clear : Palette.trayLine, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .modifier(ShakeEffect(shakes: saveShake))
+    }
+
+    private func libraryButton(size: CGFloat) -> some View {
+        Button {
+            showLibrary = true
             sound.hapticLight()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                if flashingSkill == skill {
-                    flashingSkill = nil
+        } label: {
+            Image(systemName: "square.stack")
+                .font(.system(size: size * 0.4, weight: .bold))
+                .foregroundStyle(world.snapshots.isEmpty ? ink.opacity(0.7) : accent)
+                .frame(width: size, height: size)
+                .background(Circle().fill(Color.white))
+                .overlay(Circle().stroke(world.snapshots.isEmpty ? Palette.trayLine : accent, lineWidth: world.snapshots.isEmpty ? 1.5 : 3))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func savePond() {
+        guard world.canSavePond else {
+            saveShake += 1
+            sound.play(.empty)
+            return
+        }
+        world.saveSnapshot()
+        if world.lastSaveFailed {
+            saveShake += 1
+            sound.play(.empty)
+            return
+        }
+        saveFlash = true
+        sound.play(.drop)
+        sound.hapticLight()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            saveFlash = false
+        }
+    }
+
+    private func skillButton(_ skill: CreatureSkill, size: CGFloat) -> some View {
+        let on = skill == .fish ? world.isFishing : flashingSkill == skill
+        return Button {
+            if skill != .fish {
+                flashingSkill = skill
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    if flashingSkill == skill {
+                        flashingSkill = nil
+                    }
                 }
             }
+            world.playSkill(skill, color: drawing.inkColor)
+            sound.hapticLight()
         } label: {
             Image(systemName: skill.symbol)
                 .font(.system(size: size * 0.4, weight: .bold))

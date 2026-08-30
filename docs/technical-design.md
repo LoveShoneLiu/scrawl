@@ -63,7 +63,11 @@ Each creature is an `SKSpriteNode`. Wander in the pond rect; tap bounce; at 10, 
 
 ### Persistence
 
-`Application Support/Scrawl/world.json` + PNGs. Write PNG then JSON. On launch, skip missing files. Paper `PKDrawing` is not saved.
+Live pond is in memory only. Launch always starts empty.
+
+Parent **Save this pond** writes `Application Support/Scrawl/snapshots/{id}/` (`world.json` + PNGs + `thumb.png`) and `snapshots.json`. Cap 16 saved ponds; oldest is removed when full. A leftover `world.json` from older builds is migrated into one saved pond, not restored into the live pond.
+
+Paper `PKDrawing` is not saved.
 
 ---
 
@@ -76,9 +80,9 @@ Each creature is an `SKSpriteNode`. Wander in the pond rect; tap bounce; at 10, 
 | `DrawingCanvas` | PencilKit bridge; hide picker; lock tool |
 | `DrawingSession` | Current drawing, undo, new paper, export |
 | `PondScene` | Swim, tap, enter/leave, skill toys, fishing play |
-| `WorldStore` | Creatures, cap, disk, empty, skill pulse |
+| `WorldStore` | Live pond (memory), saved ponds, empty, skill pulse |
 | `SoundPlayer` | Short sounds; follows mute |
-| `ParentSettingsView` | Sound, empty pond, save status |
+| `ParentSettingsView` | Sound, save/open/delete ponds, empty, save status |
 
 ---
 
@@ -93,9 +97,10 @@ iPad only (`TARGETED_DEVICE_FAMILY = 2`). UI, PencilKit, and SpriteKit on the ma
 1. Cold start: draw with no login.
 2. Color → draw → put in → **same doodle** swims.
 3. Empty put-in: no new creature, no error copy.
-4. Kill and relaunch: pond remains, paper is blank.
+4. Kill and relaunch: pond is empty, paper is blank. Saved ponds stay in parent settings.
 5. 11th put-in: oldest leaves.
 6. Long-press speaker: mute and empty pond.
-7. Fish toy: bobber uses current ink color; tap or wait always succeeds; decorative fish is not removed.
+7. Fish toy: tap to drop hook, tap again to cancel; catch goes into the pond net.
+8. Save next to undo writes a snapshot (doodles + netted fish). Launch still starts empty.
 
 Implementation follows this note. If play changes, update [requirements.md](./requirements.md) too.
