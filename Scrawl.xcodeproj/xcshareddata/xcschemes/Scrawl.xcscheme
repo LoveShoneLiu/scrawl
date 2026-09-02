@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A1B2C3D4E5F60718293A0015"
-               BuildableName = "Scrawl.app"
+               BuildableName = "Scribble Pond.app"
                BlueprintName = "Scrawl"
                ReferencedContainer = "container:Scrawl.xcodeproj">
             </BuildableReference>
@@ -44,7 +44,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A1B2C3D4E5F60718293A0015"
-            BuildableName = "Scrawl.app"
+            BuildableName = "Scribble Pond.app"
             BlueprintName = "Scrawl"
             ReferencedContainer = "container:Scrawl.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A1B2C3D4E5F60718293A0015"
-            BuildableName = "Scrawl.app"
+            BuildableName = "Scribble Pond.app"
             BlueprintName = "Scrawl"
             ReferencedContainer = "container:Scrawl.xcodeproj">
          </BuildableReference>

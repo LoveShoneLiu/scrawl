@@ -18,23 +18,23 @@ struct PlayView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let portrait = geo.size.height > geo.size.width
-            let pondHeight = geo.size.height * (portrait ? 0.32 : 0.36)
-            let tool = toolSize(for: geo.size, portrait: portrait)
+            let layout = PlayLayout(size: geo.size)
             ZStack(alignment: .bottom) {
                 Palette.desk.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    railsPaper(tool: tool)
+                    railsPaper(layout: layout)
                     PondView()
-                        .frame(height: pondHeight)
+                        .frame(height: layout.pondHeight)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-                putInButton
-                    .padding(.bottom, pondHeight - 4)
+                putInButton(size: layout.dropSize)
+                    .padding(.bottom, layout.pondHeight - 4)
                     .modifier(ShakeEffect(shakes: shake))
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
+            .clipped()
         }
         .ignoresSafeArea()
         .sheet(isPresented: $showSettings) {
@@ -45,95 +45,94 @@ struct PlayView: View {
         }
     }
 
-    private func toolSize(for size: CGSize, portrait: Bool) -> CGFloat {
-        let shortest = min(size.width, size.height)
-        if portrait {
-            return size.width >= 980 ? 56 : 48
-        }
-        return shortest >= 900 ? 58 : 50
-    }
-
-    private func trayWidth(_ tool: CGFloat) -> CGFloat {
-        tool * 2 + 36
-    }
-
-    private func railsPaper(tool: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            leftRail(tool: tool)
+    private func railsPaper(layout: PlayLayout) -> some View {
+        HStack(alignment: .top, spacing: layout.railGap) {
+            leftRail(layout: layout)
             paperSheet
-            rightRail(tool: tool)
+            rightRail(layout: layout)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 88)
-        .frame(maxHeight: .infinity)
+        .padding(.horizontal, layout.sidePad)
+        .padding(.top, layout.topPad)
+        .padding(.bottom, layout.dropReserve)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .clipped()
     }
 
-    private func leftRail(tool: CGFloat) -> some View {
-        toolTray(width: trayWidth(tool)) {
-            soundButton(size: tool)
+    private func leftRail(layout: PlayLayout) -> some View {
+        toolTray(layout: layout) {
+            soundButton(size: layout.tool)
             trayDivider
-            twoColumn(spacing: 10) {
+            twoColumn(spacing: layout.grid) {
                 ForEach(Array(Palette.swatches.enumerated()), id: \.offset) { _, color in
-                    colorDot(color, size: tool)
+                    colorDot(color, size: layout.tool)
                 }
             }
-            twoColumn(spacing: 10) {
+            twoColumn(spacing: layout.grid) {
                 ForEach(StampKind.allCases) { kind in
-                    stampButton(kind, size: tool)
+                    stampButton(kind, size: layout.tool)
                 }
             }
         }
     }
 
-    private func rightRail(tool: CGFloat) -> some View {
-        toolTray(width: trayWidth(tool)) {
-            HStack(spacing: 10) {
+    private func rightRail(layout: PlayLayout) -> some View {
+        toolTray(layout: layout) {
+            HStack(spacing: layout.grid) {
                 ForEach([BrushKind.crayon, .sketch], id: \.id) { kind in
-                    brushButton(kind, size: tool)
+                    brushButton(kind, size: layout.tool)
                 }
             }
-            HStack(spacing: 10) {
+            HStack(spacing: layout.grid) {
                 ForEach([InkWidth.medium, .thick]) { width in
-                    widthDot(width, hit: tool)
+                    widthDot(width, hit: layout.tool)
                 }
             }
             trayDivider
-            twoColumn(spacing: 10) {
+            twoColumn(spacing: layout.grid) {
                 ForEach(CreatureSkill.allCases.filter(\.isKidPlay)) { skill in
-                    skillButton(skill, size: tool)
+                    skillButton(skill, size: layout.tool)
                 }
             }
             trayDivider
-            HStack(spacing: 10) {
-                roundTool(systemName: "arrow.uturn.backward", size: tool) {
+            HStack(spacing: layout.grid) {
+                roundTool(systemName: "arrow.uturn.backward", size: layout.tool) {
                     drawing.undoLastStroke()
                 }
-                roundTool(systemName: "doc", size: tool) {
+                roundTool(systemName: "doc", size: layout.tool) {
                     drawing.clearPaper()
                 }
             }
-            HStack(spacing: 10) {
-                saveButton(size: tool)
-                libraryButton(size: tool)
+            HStack(spacing: layout.grid) {
+                saveButton(size: layout.tool)
+                libraryButton(size: layout.tool)
             }
         }
     }
 
-    private func toolTray<Content: View>(width: CGFloat, @ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 14, content: content)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 14)
-            .frame(width: width)
-            .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(Palette.tray)
-                    .shadow(color: Color.black.opacity(0.10), radius: 12, y: 5)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(Palette.trayLine, lineWidth: 1.5)
-            )
+    private func toolTray<Content: View>(layout: PlayLayout, @ViewBuilder content: () -> Content) -> some View {
+        let stack = VStack(spacing: layout.traySpacing, content: content)
+            .padding(.horizontal, layout.trayPadH)
+            .padding(.vertical, layout.trayPadV)
+            .frame(width: layout.trayWidth)
+        let chrome = RoundedRectangle(cornerRadius: 32, style: .continuous)
+        return Group {
+            if layout.fitsWithoutScroll {
+                stack
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    stack
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+        }
+        .background(
+            chrome
+                .fill(Palette.tray)
+                .shadow(color: Color.black.opacity(0.10), radius: 12, y: 5)
+        )
+        .overlay(chrome.stroke(Palette.trayLine, lineWidth: 1.5))
+        .clipShape(chrome)
     }
 
     private var trayDivider: some View {
@@ -378,20 +377,20 @@ struct PlayView: View {
         .accessibilityHidden(true)
     }
 
-    private var putInButton: some View {
+    private func putInButton(size: CGFloat) -> some View {
         Button(action: putIn) {
             ZStack {
                 Circle()
                     .fill(drawing.hasMarks ? accent : Color(white: 0.78))
-                    .frame(width: 84, height: 84)
+                    .frame(width: size, height: size)
                     .overlay(Circle().stroke(Color.white, lineWidth: 5))
                     .shadow(color: Color.black.opacity(0.18), radius: 8, y: 3)
                 Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 56))
+                    .font(.system(size: size * 0.67))
                     .foregroundStyle(.white)
             }
         }
-        .frame(width: 96, height: 96)
+        .frame(width: size + 12, height: size + 12)
         .buttonStyle(.plain)
         .accessibilityHidden(true)
     }
@@ -409,6 +408,80 @@ struct PlayView: View {
         }
         sound.play(.drop)
         sound.hapticLight()
+    }
+}
+
+private struct PlayLayout {
+    let tool: CGFloat
+    let traySpacing: CGFloat
+    let grid: CGFloat
+    let trayPadH: CGFloat
+    let trayPadV: CGFloat
+    let topPad: CGFloat
+    let sidePad: CGFloat
+    let railGap: CGFloat
+    let dropReserve: CGFloat
+    let dropSize: CGFloat
+    let pondHeight: CGFloat
+    let fitsWithoutScroll: Bool
+
+    var trayWidth: CGFloat { tool * 2 + 36 }
+
+    init(size: CGSize) {
+        let portrait = size.height > size.width
+        if portrait {
+            tool = size.width >= 980 ? 56 : 48
+            traySpacing = 14
+            grid = 10
+            trayPadH = 12
+            trayPadV = 14
+            topPad = 14
+            sidePad = 16
+            railGap = 14
+            dropReserve = 88
+            dropSize = 84
+            pondHeight = size.height * 0.32
+            fitsWithoutScroll = true
+            return
+        }
+
+        topPad = 8
+        sidePad = 12
+        railGap = 10
+        dropSize = size.height < 780 ? 68 : 76
+        dropReserve = dropSize + 8
+
+        var pond = min(size.height * 0.24, 240)
+        let minDrawing: CGFloat = 360
+        if size.height - pond < minDrawing {
+            pond = max(132, size.height - minDrawing)
+        }
+        pondHeight = pond
+
+        let available = max(120, size.height - pond - topPad - dropReserve)
+        var nextTool: CGFloat = min(size.width, size.height) >= 900 ? 50 : 42
+        var nextSpacing: CGFloat = 10
+        var nextGrid: CGFloat = 8
+        var nextPadV: CGFloat = 10
+        while Self.leftRailHeight(tool: nextTool, spacing: nextSpacing, grid: nextGrid, padV: nextPadV) > available && nextTool > 28 {
+            nextTool -= 1
+            if nextTool < 38 {
+                nextSpacing = 7
+                nextGrid = 6
+                nextPadV = 8
+            }
+        }
+        tool = nextTool
+        traySpacing = nextSpacing
+        grid = nextGrid
+        trayPadH = 10
+        trayPadV = nextPadV
+        fitsWithoutScroll = Self.leftRailHeight(tool: nextTool, spacing: nextSpacing, grid: nextGrid, padV: nextPadV) <= available
+    }
+
+    /// Sound + divider + 4 color rows + 3 stamp rows.
+    private static func leftRailHeight(tool: CGFloat, spacing: CGFloat, grid: CGFloat, padV: CGFloat) -> CGFloat {
+        padV * 2 + spacing * 2 + 1 + grid * 5 + tool * 8
     }
 }
 
